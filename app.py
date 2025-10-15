@@ -6,10 +6,10 @@ import datetime
 import random
 import json
 
-# --- PAGE CONFIG ---
+# ---------------- PAGE SETUP ----------------
 st.set_page_config(page_title="GeoSocial Intelligence", layout="wide")
 
-# --- CUSTOM STYLING ---
+# ---------------- CUSTOM STYLE ----------------
 st.markdown("""
 <style>
 body {
@@ -31,53 +31,60 @@ div.stButton > button:hover {
 </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
+# ---------------- HEADER ----------------
 st.markdown("<h1 style='text-align:center;'>🌍 GeoSocial Intelligence Dashboard</h1>", unsafe_allow_html=True)
-st.write("Visualize global conflicts and study simulated social activity around them in 3D.")
+st.write("Explore global conflicts and study simulated social media activity in 3D.")
 
-# --- CESIUM GLOBE ---
+# ---------------- LOAD CESIUM GLOBE ----------------
 with open("cesium_component.html", "r") as f:
     cesium_html = f.read()
-iframe = components.html(cesium_html, height=600)
+components.html(cesium_html, height=600)
 
-# --- GDELT FETCH FUNCTION ---
+# ---------------- FETCH EVENTS (GDELT GEOJSON) ----------------
 def fetch_gdelt_events():
-    url = "https://api.gdeltproject.org/api/v2/events/geojson"
-    params = {
-        "query": "conflict OR protest OR crisis",
-        "maxrecords": 20,
-        "sort": "datedesc"
-    }
-    r = requests.get(url, params=params)
-    if r.status_code == 200:
-        data = r.json()
-        if "features" in data:
-            events = []
-            for feature in data["features"]:
-                props = feature["properties"]
-                coords = feature["geometry"]["coordinates"]
-                events.append({
-                    "title": props.get("EventBaseCode", "Unknown Event"),
-                    "lat": coords[1],
-                    "lon": coords[0],
-                    "location": props.get("ActionGeo_FullName", "Unknown"),
-                    "date": props.get("SQLDATE", "N/A"),
-                    "tone": props.get("AvgTone", 0),
-                    "url": props.get("SOURCEURL", "#")
-                })
-            return events
+    """Fetch recent global events from GDELT that have location data."""
+    try:
+        # Pull data from the last 24 hours
+        url = "https://api.gdeltproject.org/api/v2/events/geojson"
+        params = {
+            "query": "conflict OR protest OR crisis OR attack OR explosion",
+            "maxrecords": 30,
+            "sort": "datedesc",
+            "format": "geojson"
+        }
+        r = requests.get(url, params=params, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            if "features" in data:
+                events = []
+                for feature in data["features"]:
+                    props = feature.get("properties", {})
+                    coords = feature.get("geometry", {}).get("coordinates", [0, 0])
+                    if coords and coords[0] and coords[1]:
+                        events.append({
+                            "title": props.get("EventBaseCode", "Unknown Event"),
+                            "lat": coords[1],
+                            "lon": coords[0],
+                            "location": props.get("ActionGeo_FullName", "Unknown"),
+                            "date": props.get("SQLDATE", "N/A"),
+                            "tone": props.get("AvgTone", 0),
+                            "url": props.get("SOURCEURL", "#")
+                        })
+                return events
+    except Exception as e:
+        st.error(f"Error fetching events: {e}")
     return []
 
-# --- FETCH EVENTS ---
+# ---------------- LOAD EVENTS ----------------
 st.subheader("🛰 Latest Global Events")
+
 events = fetch_gdelt_events()
-
 if not events:
-    st.warning("⚠️ No recent events found. Try again later.")
+    st.warning("⚠️ No recent events found. This sometimes happens if GDELT hasn’t updated — try again in a few minutes.")
 else:
-    st.success(f"Loaded {len(events)} recent events from GDELT.")
+    st.success(f"Loaded {len(events)} global events from GDELT.")
 
-# --- SEND EVENTS TO CESIUM ---
+# ---------------- SEND POINTS TO CESIUM ----------------
 if events:
     points = [{"lat": e["lat"], "lon": e["lon"], "title": e["title"], "location": e["location"]} for e in events]
     js_command = f"""
@@ -87,7 +94,7 @@ if events:
     """
     components.html(js_command, height=0, width=0)
 
-# --- DISPLAY EVENT BUTTONS ---
+# ---------------- SELECT EVENT ----------------
 selected_event = None
 cols = st.columns(2)
 for i, event in enumerate(events):
@@ -95,7 +102,7 @@ for i, event in enumerate(events):
         if st.button(f"📍 {event['location']} | Tone: {event['tone']}"):
             selected_event = event
 
-# --- SIMULATED SOCIAL ACTIVITY CURVE ---
+# ---------------- ACTIVITY CURVE ----------------
 if selected_event:
     st.markdown(f"### 🌐 {selected_event['title']} in {selected_event['location']}")
     st.write(f"**Date:** {selected_event['date']} | **Tone:** {selected_event['tone']}")
@@ -118,3 +125,4 @@ if selected_event:
         template="plotly_dark"
     )
     st.plotly_chart(fig, use_container_width=True)
+
