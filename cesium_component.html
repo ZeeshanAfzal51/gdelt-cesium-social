@@ -18,20 +18,25 @@
 
       const viewer = new Cesium.Viewer('cesiumContainer', {
         timeline: false,
-        animation: false
+        animation: false,
+        baseLayerPicker: true
       });
 
+      // Listen for incoming points from Streamlit
       window.addEventListener('message', (event) => {
         if (event.data.type === 'addPoints') {
+          viewer.entities.removeAll();
           event.data.points.forEach(p => {
-            viewer.entities.add({
+            const entity = viewer.entities.add({
               position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
               point: { pixelSize: 10, color: Cesium.Color.RED },
-              description: p.title
+              description: `<h3>${p.title}</h3><p>${p.location}</p>`
             });
           });
+          viewer.flyTo(viewer.entities);
         }
       });
     </script>
   </body>
 </html>
+
