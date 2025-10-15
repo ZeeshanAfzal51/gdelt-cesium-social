@@ -8,6 +8,7 @@
     <style>
       html, body, #cesiumContainer {
         width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        background-color: black;
       }
     </style>
   </head>
@@ -16,17 +17,26 @@
     <script>
       Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyYmZjMGU3OS0wYjE5LTQwYzItYThmNC04Y2NlODZjYTA1ZjciLCJpZCI6MzUwNjQ1LCJpYXQiOjE3NjA1MDg3NDB9.m3BFiquwA4LnItl6sBbr-vr1RXhQGu65NMx6g5MiUGs";
 
-      const viewer = new Cesium.Viewer('cesiumContainer', {
+      const viewer = new Cesium.Viewer("cesiumContainer", {
+        imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
         timeline: false,
         animation: false,
-        baseLayerPicker: true
+        fullscreenButton: false
       });
 
-      // Listen for incoming points from Streamlit
-      window.addEventListener('message', (event) => {
-        if (event.data.type === 'addPoints') {
+      // Lighting and atmosphere
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.skyAtmosphere.show = true;
+
+      // Listen for event points from Streamlit
+      window.addEventListener("message", (event) => {
+        if (event.data.type === "addPoints") {
           viewer.entities.removeAll();
-          event.data.points.forEach(p => {
+          event.data.points.forEach((p) => {
             const entity = viewer.entities.add({
               position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
               point: { pixelSize: 10, color: Cesium.Color.RED },
@@ -39,4 +49,3 @@
     </script>
   </body>
 </html>
-
