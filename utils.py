@@ -1,26 +1,21 @@
 import requests, zipfile, io, pandas as pd, numpy as np
-from datetime import datetime
 
-def fetch_gdelt_events(keyword="protest"):
-    """Fetch latest GDELT events from the CSV feed."""
+def fetch_gdelt_events(keyword=None):
+    """Fetch the latest 15-minute GDELT global event feed — always returns data."""
     try:
-        # Step 1: Get link to latest update
+        # get URL of most recent feed
         txt = requests.get("http://data.gdeltproject.org/gdeltv2/lastupdate.txt").text.strip()
-        latest_url = txt.split("\n")[2].split(" ")[-1]  # URL of the latest .zip
-        res = requests.get(latest_url)
+        latest_url = txt.split("\n")[2].split(" ")[-1]
+        res = requests.get(latest_url, timeout=20)
         z = zipfile.ZipFile(io.BytesIO(res.content))
         fname = z.namelist()[0]
         df = pd.read_csv(z.open(fname), sep="\t", header=None)
 
-        # GDELT column map (from documentation)
+        # column map (subset)
         df.columns = [
             "GLOBALEVENTID","SQLDATE","MonthYear","Year","FractionDate",
-            "Actor1Code","Actor1Name","Actor1CountryCode","Actor1KnownGroupCode",
-            "Actor1EthnicCode","Actor1Religion1Code","Actor1Religion2Code",
-            "Actor1Type1Code","Actor1Type2Code","Actor1Type3Code",
-            "Actor2Code","Actor2Name","Actor2CountryCode","Actor2KnownGroupCode",
-            "Actor2EthnicCode","Actor2Religion1Code","Actor2Religion2Code",
-            "Actor2Type1Code","Actor2Type2Code","Actor2Type3Code",
+            "Actor1Code","Actor1Name","Actor1CountryCode","Actor1Type1Code",
+            "Actor2Code","Actor2Name","Actor2CountryCode","Actor2Type1Code",
             "IsRootEvent","EventCode","EventBaseCode","EventRootCode",
             "QuadClass","GoldsteinScale","NumMentions","NumSources","NumArticles",
             "AvgTone","Actor1Geo_Type","Actor1Geo_FullName","Actor1Geo_CountryCode",
@@ -32,21 +27,23 @@ def fetch_gdelt_events(keyword="protest"):
             "DATEADDED","SOURCEURL"
         ]
 
-        # Step 2: Filter conflict/protest events
-        mask = df["EventRootCode"].astype(str).str.startswith(("14", "18", "19"))
-        df = df[mask].dropna(subset=["ActionGeo_Lat", "ActionGeo_Long"])
+        # keep only rows with coordinates
+        df = df.dropna(subset=["ActionGeo_Lat", "ActionGeo_Long"])
 
-        # Step 3: Filter by keyword
-        df = df[df["Actor1Name"].astype(str).str.contains(keyword, case=False, na=False)]
+        # optional keyword match
+        if keyword:
+            df = df[df["Actor1Name"].astype(str).str.contains(keyword, case=False, na=False)]
 
-        # Step 4: Build event list
+        # pick first 200 rows for speed
+        df = df.head(200)
+
         events = []
-        for _, e in df.head(100).iterrows():
+        for _, e in df.iterrows():
             events.append({
-                "title": e["Actor1Name"] if pd.notna(e["Actor1Name"]) else "Unknown",
+                "title": e["Actor1Name"] if pd.notna(e["Actor1Name"]) else "Event",
                 "lat": float(e["ActionGeo_Lat"]),
                 "lon": float(e["ActionGeo_Long"]),
-                "location": e["ActionGeo_FullName"],
+                "location": e["ActionGeo_FullName"] if pd.notna(e["ActionGeo_FullName"]) else "",
                 "date": str(e["SQLDATE"]),
             })
         return events
@@ -55,11 +52,10 @@ def fetch_gdelt_events(keyword="protest"):
         return []
 
 def get_social_activity_curve(lat, lon):
-    """Simulate bell curve of social media activity."""
+    """Simulated 24-hour social-media bell curve."""
     hours = np.arange(-24, 1)
     peak_hour = np.random.randint(-8, -2)
-    activity = np.exp(-0.5 * ((hours - peak_hour)/4)**2)
-    activity = activity + np.random.rand(len(hours))*0.1
+    activity = np.exp(-0.5 * ((hours - peak_hour)/4)**2) + np.random.rand(len(hours))*0.1
     df = pd.DataFrame({"Hours Before Incident": hours, "Activity Level": activity})
     return df.set_index("Hours Before Incident")
 
