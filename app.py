@@ -7,7 +7,7 @@ st.title("🌍 GeoSentience — Social Activity vs Conflict Events")
 
 # Sidebar filters
 st.sidebar.header("Filter Events")
-keyword = st.sidebar.text_input("Keyword (optional):", "protest")
+keyword = st.sidebar.text_input("Keyword (optional):", "")
 
 with st.spinner("Fetching the latest global events..."):
     events = fetch_gdelt_events(keyword=keyword)
